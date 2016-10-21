@@ -1,0 +1,15 @@
+html, body {
+	font-family: 'Roboto', 'Helvetica', sans-serif;
+}
+#tab-content > div{
+	display: none;
+}
+#tab-content > div.active{
+	display: block;
+}
+.pull-right{
+	float: right;
+}
+.th-row{
+	padding: 8px;
+}

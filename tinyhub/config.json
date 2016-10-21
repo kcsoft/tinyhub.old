@@ -1,0 +1,137 @@
+{
+  "plugins": [
+    {
+      "plugin": "websocket"
+    },
+    {
+      "plugin": "mqtt",
+	  "broker": "localhost",
+	  "js": "plugins/mqtt"
+    }
+  ],
+  "devices": [
+    {
+      "class": "MqttSensor",
+      "id": "garageTemp",
+      "name": "Garage Temperature",
+      "attributes": [
+        {
+          "name": "temp-celsius",
+          "topic": "garage/temperature",
+          "type": "number",
+          "unit": "°C",
+          "acronym": "t"
+        }
+      ]
+    },
+    {
+      "class": "MqttSensor",
+      "id": "garageHumid",
+      "name": "Garage Humidity",
+      "attributes": [
+        {
+          "name": "temp-humidity",
+          "topic": "garage/humidity",
+          "type": "number",
+          "unit": "%",
+          "acronym": ""
+        }
+      ]
+    },
+    {
+      "class": "MqttSensor",
+      "id": "garageRssi",
+      "name": "Garage Sensor RSSI",
+      "attributes": [
+        {
+          "name": "temp-rssi",
+          "topic": "garage/rssi",
+          "type": "number",
+          "unit": "%",
+          "acronym": ""
+        }
+      ]
+    },
+    {
+      "class": "MqttSensor",
+      "id": "garageDoor",
+      "name": "Garage Door State",
+      "attributes": [
+        {
+          "name": "garage-door",
+          "topic": "garage/door",
+          "type": "string",
+          "messageMap": {
+            "0": "Closed",
+            "1": "Open",
+            "2": "Closing",
+            "3": "Opening"
+          },
+          "unit": "",
+          "acronym": ""
+        }
+      ]
+    },
+    {
+      "class": "MqttButtons",
+      "id": "button-garage",
+      "name": "Garage Door",
+      "buttons": [
+        {
+          "id": "button1",
+          "text": "Door",
+          "topic": "garage",
+          "message": "1",
+		  "stateTopic": "garage/door",
+          "messageMap": {
+            "0": "Open",
+            "1": "Close",
+            "2": "Stop",
+            "3": "Stop"
+          }
+        }
+      ]
+    },
+    {
+      "class": "MqttSwitch",
+      "id": "switch-1",
+      "name": "Kitchen",
+      "topic": "house/1/light/1",
+      "stateTopic": "house/1/light/state/1",
+      "onMessage": "1",
+      "offMessage": "0"
+    }
+  ]
+  "pages": [
+    {
+      "id": "floor1",
+      "name": "First floor",
+      "devices": [
+        {
+          "deviceId": "switch-1"
+        }
+      ]
+    },
+    {
+      "id": "garage",
+      "name": "Garage",
+      "devices": [
+        {
+          "deviceId": "garageTemp"
+        },
+        {
+          "deviceId": "garageHumid"
+        },
+        {
+          "deviceId": "garageRssi"
+        },
+        {
+          "deviceId": "garageDoor"
+        },
+        {
+          "deviceId": "button-garage"
+        }
+      ]
+    }
+  ]
+}

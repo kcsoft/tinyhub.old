@@ -1,0 +1,8 @@
+.th-row .mqtt-switch{
+	display: block;
+	padding: 0;
+}
+.th-row .mqtt-switch .form-icon {
+	left: auto;
+	right: 10px;
+}
