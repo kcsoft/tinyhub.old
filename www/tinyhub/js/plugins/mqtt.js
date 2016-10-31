@@ -85,6 +85,9 @@ define(['css!../../styles/mqtt'], function () {
 
 		afterRender: function() {
 			this.dom = document.getElementById(this.props.id);
+			if (this.props.value) {
+				this.changed(this.props.value);
+			}
 			this.dom.addEventListener('click', function(e) {
 				this.onChange(e);
 			}.bind(this));
