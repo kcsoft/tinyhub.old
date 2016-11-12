@@ -7,6 +7,9 @@
       "plugin": "mqtt",
 	  "broker": "localhost",
 	  "js": "plugins/mqtt"
+    },
+    {
+      "plugin": "tinyubus"
     }
   ],
   "devices": [
