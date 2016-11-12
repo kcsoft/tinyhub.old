@@ -20,11 +20,7 @@ function MqttSwitch:onMqttMessage(eventParam, actions)
 	
 	local msg = {}
 	msg[self.props.id] = self.props.value
-	if (actions["webBroadcast"]) then
-		table.insert(actions["webBroadcast"], msg)
-	else
-		actions["webBroadcast"] = {msg}
-	end
+	Utils.appendTableKey(actions, "webBroadcast", msg)
 end
 
 function MqttSwitch:onWebChange(eventParam, actions)
@@ -38,15 +34,14 @@ function MqttSwitch:onWebChange(eventParam, actions)
 	end
 
 	local mqttMsg = {topic = self.props.topic, payload = publishVal}
-	if (actions["mqttPublish"]) then
-		table.insert(actions["mqttPublish"], mqttMsg)
-	else
-		actions["mqttPublish"] = {mqttMsg}
-	end
-	
+	Utils.appendTableKey(actions, "mqttPublish", mqttMsg)
 	self:onMqttMessage({payload = publishVal}, actions)
 end
 
 function MqttSwitch:onMqttSubscribe(eventParam, actions)
-	return {self.props.stateTopic}
+	if type(self.props.stateTopic) == "string" then
+		return {self.props.stateTopic}
+	else
+		return self.props.stateTopic
+	end
 end

@@ -22,3 +22,11 @@ function Utils.deepCopy(orig)
    else copy = orig end
    return copy
 end
+
+function Utils.appendTableKey(tabl, keyName, value)
+	if (tabl[keyName]) then
+		table.insert(tabl[keyName], value)
+	else
+		tabl[keyName] = {value}
+	end
+end

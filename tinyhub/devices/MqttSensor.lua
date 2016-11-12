@@ -16,11 +16,7 @@ function MqttSensor:onMqttMessage(eventParam, actions)
 	
 	local msg = {}
 	msg[self.props.id] = self.props.value
-	if (actions["webBroadcast"]) then
-		table.insert(actions["webBroadcast"], msg)
-	else
-		actions["webBroadcast"] = {msg}
-	end
+	Utils.appendTableKey(actions, "webBroadcast", msg)
 end
 
 function MqttSensor:onMqttSubscribe(eventParam, actions)

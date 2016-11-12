@@ -16,11 +16,7 @@ function MqttButtons:onMqttMessage(eventParam, actions)
 	
 	local msg = {}
 	msg[self.props.id] = self.props.value
-	if (actions["webBroadcast"]) then
-		table.insert(actions["webBroadcast"], msg)
-	else
-		actions["webBroadcast"] = {msg}
-	end
+	Utils.appendTableKey(actions, "webBroadcast", msg)
 end
 
 function MqttButtons:onMqttSubscribe(eventParam, actions)
@@ -36,12 +32,7 @@ function MqttButtons:onWebChange(eventParam, actions)
 	local idx, buttons = next(self.props.buttons)
 	local mqttMsg = {topic = buttons.topic, payload = buttons.message}
 	
-	if (actions["mqttPublish"]) then
-		table.insert(actions["mqttPublish"], mqttMsg)
-	else
-		actions["mqttPublish"] = {mqttMsg}
-	end
-	
+	Utils.appendTableKey(actions, "mqttPublish", mqttMsg)
 	self:onMqttMessage({payload = self.props.value}, actions)
 end
 
