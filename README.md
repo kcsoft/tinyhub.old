@@ -9,7 +9,7 @@ Open source home automation software for OpenWRT written in Lua.
 * lua
 * lua-mosquitto
 * luabitop
-* lua-copas
+* libubox-lua
 * luasocket
 * lua-coxpcall
 * luasec
@@ -26,6 +26,7 @@ Open `http://<openwrt>/tinyhub/` in your browser.
 ##Plugins
 * Websocket (core)
 * Mqtt
+* UBus
 
 
 ##Devices
