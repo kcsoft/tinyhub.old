@@ -203,57 +203,6 @@ return {
   extend = extend
 }
  end)
-package.preload['websocket.client'] = (function (...)
-return setmetatable({},{__index = function(self, name)
-  if name == 'new' then name = 'sync' end
-  local backend = require("websocket.client_" .. name)
-  self[name] = backend
-  if name == 'sync' then self.new = backend end
-  return backend
-end})
- end)
-package.preload['websocket.client_copas'] = (function (...)
-local socket = require'socket'
-local sync = require'websocket.sync'
-local tools = require'websocket.tools'
-
-local new = function(ws)
-  ws = ws or {}
-  local copas = require'copas'
-  
-  local self = {}
-  
-  self.sock_connect = function(self,host,port)
-    self.sock = socket.tcp()
-    if ws.timeout ~= nil then
-      self.sock:settimeout(ws.timeout)
-    end
-    local _,err = copas.connect(self.sock,host,port)
-    if err and err ~= 'already connected' then
-      self.sock:close()
-      return nil,err
-    end
-  end
-  
-  self.sock_send = function(self,...)
-    return copas.send(self.sock,...)
-  end
-  
-  self.sock_receive = function(self,...)
-    return copas.receive(self.sock,...)
-  end
-  
-  self.sock_close = function(self)
-    self.sock:shutdown()
-    self.sock:close()
-  end
-  
-  self = sync.extend(self)
-  return self
-end
-
-return new
- end)
 package.preload['websocket.server'] = (function (...)
 return setmetatable({},{__index = function(self, name)
   local backend = require("websocket.server_" .. name)
@@ -261,36 +210,40 @@ return setmetatable({},{__index = function(self, name)
   return backend
 end})
  end)
-package.preload['websocket.server_copas'] = (function (...)
+package.preload['websocket.server_uloop'] = (function (...)
 
 local socket = require'socket'
-local copas = require'copas'
 local tools = require'websocket.tools'
 local frame = require'websocket.frame'
 local handshake = require'websocket.handshake'
 local sync = require'websocket.sync'
+require'uloop'
 local tconcat = table.concat
 local tinsert = table.insert
 
 local clients = {}
+local sock_clients = {}
+local sock_events = {}
 
 local client = function(sock,protocol)
-  local copas = require'copas'
   
   local self = {}
   
   self.state = 'OPEN'
   self.is_server = true
-  
+    
   self.sock_send = function(self,...)
-    return copas.send(sock,...)
+    return sock:send(...)
   end
   
   self.sock_receive = function(self,...)
-    return copas.receive(sock,...)
+    return sock:receive(...)
   end
   
   self.sock_close = function(self)
+    sock_clients[sock:getfd()] = nil
+    sock_events[sock:getfd()]:delete()
+    sock_events[sock:getfd()] = nil
     sock:shutdown()
     sock:close()
   end
@@ -313,15 +266,16 @@ local client = function(sock,protocol)
   return self
 end
 
+
 local listen = function(opts)
   
-  local copas = require'copas'
   assert(opts and (opts.protocols or opts.default))
   local on_error = opts.on_error or function(s) print(s) end
-  local listener,err = socket.bind(opts.interface or '*',opts.port or 80)
-  if err then
-    error(err)
-  end
+  local listener = socket.tcp()
+  listener:settimeout(0)
+  listener:bind("*", opts.port or 80)
+  listener:listen()
+
   local protocols = {}
   if opts.protocols then
     for protocol in pairs(opts.protocols) do
@@ -331,17 +285,18 @@ local listen = function(opts)
   end
   -- true is the 'magic' index for the default handler
   clients[true] = {}
-  copas.addserver(
-    listener,
-    function(sock)
+
+  tcp_event = uloop.fd_add(listener, function(tfd, events)
+    tfd:settimeout(3)
+    local new_conn = assert(tfd:accept())
+    if new_conn ~= nil then
       local request = {}
       repeat
-        -- no timeout used, so should either return with line or err
-        local line,err = copas.receive(sock,'*l')
+        local line,err = new_conn:receive('*l')
         if line then
           request[#request+1] = line
         else
-          sock:close()
+          new_conn:close()
           if on_error then
             on_error('invalid request')
           end
@@ -351,14 +306,14 @@ local listen = function(opts)
       local upgrade_request = tconcat(request,'\r\n')
       local response,protocol = handshake.accept_upgrade(upgrade_request,protocols)
       if not response then
-        copas.send(sock,protocol)
-        sock:close()
+        new_conn:send(protocol)
+        new_conn:close()
         if on_error then
           on_error('invalid request')
         end
         return
       end
-      copas.send(sock,response)
+      new_conn:send(response)
       local handler
       local new_client
       local protocol_index
@@ -370,40 +325,22 @@ local listen = function(opts)
         protocol_index = true
         handler = opts.default
       else
-        sock:close()
+        new_conn:close()
         if on_error then
           on_error('bad protocol')
         end
         return
       end
-      new_client = client(sock,protocol_index)
+      new_client = client(new_conn, protocol_index)
+      sock_clients[new_conn:getfd()] = new_client
       clients[protocol_index][new_client] = true
-      handler(new_client)
-      -- this is a dirty trick for preventing
-      -- copas from automatically and prematurely closing
-      -- the socket
-      while new_client.state ~= 'CLOSED' do
-        local dummy = {
-          send = function() end,
-          close = function() end
-        }
-        copas.send(dummy)
-      end
-    end)
-  local self = {}
-  self.close = function(_,keep_clients)
-    copas.removeserver(listener)
-    listener = nil
-    if not keep_clients then
-      for protocol,clients in pairs(clients) do
-        for client in pairs(clients) do
-          client:close()
-        end
-      end
+      
+      sock_events[new_conn:getfd()] = uloop.fd_add(new_conn, function(csocket, events)
+        handler(sock_clients[csocket:getfd()])
+      end, uloop.ULOOP_READ)
     end
-  end
-  return self
-end
+  end, uloop.ULOOP_READ)
+end  
 
 return {
   listen = listen,
@@ -949,691 +886,10 @@ else
   return require'bit'
 end
  end)
-package.preload['websocket.client_ev'] = (function (...)
-
-local socket = require'socket'
-local tools = require'websocket.tools'
-local frame = require'websocket.frame'
-local handshake = require'websocket.handshake'
-local debug = require'debug'
-local tconcat = table.concat
-local tinsert = table.insert
-
-local ev = function(ws)
-  ws = ws or {}
-  local ev = require'ev'
-  local sock
-  local loop = ws.loop or ev.Loop.default
-  local fd
-  local message_io
-  local handshake_io
-  local send_io_stop
-  local async_send
-  local self = {}
-  self.state = 'CLOSED'
-  local close_timer
-  local user_on_message
-  local user_on_close
-  local user_on_open
-  local user_on_error
-  local cleanup = function()
-    if close_timer then
-      close_timer:stop(loop)
-      close_timer = nil
-    end
-    if handshake_io then
-      handshake_io:stop(loop)
-      handshake_io:clear_pending(loop)
-      handshake_io = nil
-    end
-    if send_io_stop then
-      send_io_stop()
-      send_io_stop = nil
-    end
-    if message_io then
-      message_io:stop(loop)
-      message_io:clear_pending(loop)
-      message_io = nil
-    end
-    if sock then
-      sock:shutdown()
-      sock:close()
-      sock = nil
-    end
-  end
-
-  local on_close = function(was_clean,code,reason)
-    cleanup()
-    self.state = 'CLOSED'
-    if user_on_close then
-      user_on_close(self,was_clean,code,reason or '')
-    end
-  end
-  local on_error = function(err,dont_cleanup)
-    if not dont_cleanup then
-      cleanup()
-    end
-    if user_on_error then
-      user_on_error(self,err)
-    else
-      print('Error',err)
-    end
-  end
-  local on_open = function()
-    self.state = 'OPEN'
-    if user_on_open then
-      user_on_open(self)
-    end
-  end
-  local handle_socket_err = function(err,io,sock)
-    if self.state == 'OPEN' then
-      on_close(false,1006,err)
-    elseif self.state ~= 'CLOSED' then
-      on_error(err)
-    end
-  end
-  local on_message = function(message,opcode)
-    if opcode == frame.TEXT or opcode == frame.BINARY then
-      if user_on_message then
-        user_on_message(self,message,opcode)
-      end
-    elseif opcode == frame.CLOSE then
-      if self.state ~= 'CLOSING' then
-        self.state = 'CLOSING'
-        local code,reason = frame.decode_close(message)
-        local encoded = frame.encode_close(code)
-        encoded = frame.encode(encoded,frame.CLOSE,true)
-        async_send(encoded,
-          function()
-            on_close(true,code or 1005,reason)
-          end,handle_socket_err)
-      else
-        on_close(true,1005,'')
-      end
-    end
-  end
-
-  self.send = function(_,message,opcode)
-    local encoded = frame.encode(message,opcode or frame.TEXT,true)
-    async_send(encoded, nil, handle_socket_err)
-  end
-
-  self.connect = function(_,url,ws_protocol)
-    if self.state ~= 'CLOSED' then
-      on_error('wrong state',true)
-      return
-    end
-    local protocol,host,port,uri = tools.parse_url(url)
-    if protocol ~= 'ws' then
-      on_error('bad protocol')
-      return
-    end
-    local ws_protocols_tbl = {''}
-    if type(ws_protocol) == 'string' then
-        ws_protocols_tbl = {ws_protocol}
-    elseif type(ws_protocol) == 'table' then
-        ws_protocols_tbl = ws_protocol
-    end
-    self.state = 'CONNECTING'
-    assert(not sock)
-    sock = socket.tcp()
-    fd = sock:getfd()
-    assert(fd > -1)
-    -- set non blocking
-    sock:settimeout(0)
-    sock:setoption('tcp-nodelay',true)
-    async_send,send_io_stop = require'websocket.ev_common'.async_send(sock,loop)
-    handshake_io = ev.IO.new(
-      function(loop,connect_io)
-        connect_io:stop(loop)
-        local key = tools.generate_key()
-        local req = handshake.upgrade_request
-        {
-          key = key,
-          host = host,
-          port = port,
-          protocols = ws_protocols_tbl,
-          origin = ws.origin,
-          uri = uri
-        }
-        async_send(
-          req,
-          function()
-            local resp = {}
-            local response = ''
-            local read_upgrade = function(loop,read_io)
-              -- this seems to be possible, i don't understand why though :(
-              if not sock then
-                read_io:stop(loop)
-                handshake_io = nil
-                return
-              end
-              repeat
-                local byte,err,pp = sock:receive(1)
-                if byte then
-                  response = response..byte
-                elseif err then
-                  if err == 'timeout' then
-                    return
-                  else
-                    read_io:stop(loop)
-                    on_error('accept failed')
-                    return
-                  end
-                end
-              until response:sub(#response-3) == '\r\n\r\n'
-              read_io:stop(loop)
-              handshake_io = nil
-              local headers = handshake.http_headers(response)
-              local expected_accept = handshake.sec_websocket_accept(key)
-              if headers['sec-websocket-accept'] ~= expected_accept then
-                self.state = 'CLOSED'
-                on_error('accept failed')
-                return
-              end
-              message_io = require'websocket.ev_common'.message_io(
-                sock,loop,
-                on_message,
-              handle_socket_err)
-              on_open(self)
-            end
-            handshake_io = ev.IO.new(read_upgrade,fd,ev.READ)
-            handshake_io:start(loop)-- handshake
-          end,
-        handle_socket_err)
-      end,fd,ev.WRITE)
-    local connected,err = sock:connect(host,port)
-    if connected then
-      handshake_io:callback()(loop,handshake_io)
-    elseif err == 'timeout' or err == 'Operation already in progress' then
-      handshake_io:start(loop)-- connect
-    else
-      self.state = 'CLOSED'
-      on_error(err)
-    end
-  end
-
-  self.on_close = function(_,on_close_arg)
-    user_on_close = on_close_arg
-  end
-
-  self.on_error = function(_,on_error_arg)
-    user_on_error = on_error_arg
-  end
-
-  self.on_open = function(_,on_open_arg)
-    user_on_open = on_open_arg
-  end
-
-  self.on_message = function(_,on_message_arg)
-    user_on_message = on_message_arg
-  end
-
-  self.close = function(_,code,reason,timeout)
-    if handshake_io then
-      handshake_io:stop(loop)
-      handshake_io:clear_pending(loop)
-    end
-    if self.state == 'CONNECTING' then
-      self.state = 'CLOSING'
-      on_close(false,1006,'')
-      return
-    elseif self.state == 'OPEN' then
-      self.state = 'CLOSING'
-      timeout = timeout or 3
-      local encoded = frame.encode_close(code or 1000,reason)
-      encoded = frame.encode(encoded,frame.CLOSE,true)
-      -- this should let the other peer confirm the CLOSE message
-      -- by 'echoing' the message.
-      async_send(encoded)
-      close_timer = ev.Timer.new(function()
-          close_timer = nil
-          on_close(false,1006,'timeout')
-        end,timeout)
-      close_timer:start(loop)
-    end
-  end
-
-  return self
-end
-
-return ev
- end)
-package.preload['websocket.ev_common'] = (function (...)
-local ev = require'ev'
-local frame = require'websocket.frame'
-local tinsert = table.insert
-local tconcat = table.concat
-local eps = 2^-40
-
-local detach = function(f,loop)
-  if ev.Idle then
-    ev.Idle.new(function(loop,io)
-        io:stop(loop)
-        f()
-      end):start(loop)
-  else
-    ev.Timer.new(function(loop,io)
-        io:stop(loop)
-        f()
-      end,eps):start(loop)
-  end
-end
-
-local async_send = function(sock,loop)
-  assert(sock)
-  loop = loop or ev.Loop.default
-  local sock_send = sock.send
-  local buffer
-  local index
-  local callbacks = {}
-  local send = function(loop,write_io)
-    local len = #buffer
-    local sent,err,last = sock_send(sock,buffer,index)
-    if not sent and err ~= 'timeout' then
-      write_io:stop(loop)
-      if callbacks.on_err then
-        if write_io:is_active() then
-          callbacks.on_err(err)
-        else
-          detach(function()
-              callbacks.on_err(err)
-            end,loop)
-        end
-      end
-    elseif sent then
-      local copy = buffer
-      buffer = nil
-      index = nil
-      write_io:stop(loop)
-      if callbacks.on_sent then
-        -- detach calling callbacks.on_sent from current
-        -- exection if thiis call context is not
-        -- the send io to let send_async(_,on_sent,_) truely
-        -- behave async.
-        if write_io:is_active() then
-          
-          callbacks.on_sent(copy)
-        else
-          -- on_sent is only defined when responding to "on message for close op"
-          -- so this can happen only once per lifetime of a websocket instance.
-          -- callbacks.on_sent may be overwritten by a new call to send_async
-          -- (e.g. due to calling ws:close(...) or ws:send(...))
-          local on_sent = callbacks.on_sent
-          detach(function()
-              on_sent(copy)
-            end,loop)
-        end
-      end
-    else
-      assert(last < len)
-      index = last + 1
-    end
-  end
-  local io = ev.IO.new(send,sock:getfd(),ev.WRITE)
-  local stop = function()
-    io:stop(loop)
-    buffer = nil
-    index = nil
-  end
-  local send_async = function(data,on_sent,on_err)
-    if buffer then
-      -- a write io is still running
-      buffer = buffer..data
-      return #buffer
-    else
-      buffer = data
-    end
-    callbacks.on_sent = on_sent
-    callbacks.on_err = on_err
-    if not io:is_active() then
-      send(loop,io)
-      if index ~= nil then
-        io:start(loop)
-      end
-    end
-    local buffered = (buffer and #buffer - (index or 0)) or 0
-    return buffered
-  end
-  return send_async,stop
-end
-
-local message_io = function(sock,loop,on_message,on_error)
-  assert(sock)
-  assert(loop)
-  assert(on_message)
-  assert(on_error)
-  local last
-  local frames = {}
-  local first_opcode
-  assert(sock:getfd() > -1)
-  local message_io
-  local dispatch = function(loop,io)
-    -- could be stopped meanwhile by on_message function
-    while message_io:is_active() do
-      local encoded,err,part = sock:receive(100000)
-      if err then
-        if err == 'timeout' and #part == 0 then
-          return
-        elseif #part == 0 then
-          if message_io then
-            message_io:stop(loop)
-          end
-          on_error(err,io,sock)
-          return
-        end
-      end
-      if last then
-        encoded = last..(encoded or part)
-        last = nil
-      else
-        encoded = encoded or part
-      end
-      
-      repeat
-        local decoded,fin,opcode,rest = frame.decode(encoded)
-        if decoded then
-          if not first_opcode then
-            first_opcode = opcode
-          end
-          tinsert(frames,decoded)
-          encoded = rest
-          if fin == true then
-            on_message(tconcat(frames),first_opcode)
-            frames = {}
-            first_opcode = nil
-          end
-        end
-      until not decoded
-      if #encoded > 0 then
-        last = encoded
-      end
-    end
-  end
-  message_io = ev.IO.new(dispatch,sock:getfd(),ev.READ)
-  message_io:start(loop)
-  -- the might be already data waiting (which will not trigger the IO)
-  dispatch(loop,message_io)
-  return message_io
-end
-
-return {
-  async_send = async_send,
-  message_io = message_io
-}
- end)
-package.preload['websocket.server_ev'] = (function (...)
-
-local socket = require'socket'
-local tools = require'websocket.tools'
-local frame = require'websocket.frame'
-local handshake = require'websocket.handshake'
-local tconcat = table.concat
-local tinsert = table.insert
-local ev
-local loop
-
-local clients = {}
-clients[true] = {}
-
-local client = function(sock,protocol)
-  assert(sock)
-  sock:setoption('tcp-nodelay',true)
-  local fd = sock:getfd()
-  local message_io
-  local close_timer
-  local async_send = require'websocket.ev_common'.async_send(sock,loop)
-  local self = {}
-  self.state = 'OPEN'
-  self.sock = sock
-  local user_on_error
-  local on_error = function(s,err)
-    if clients[protocol] ~= nil and clients[protocol][self] ~= nil then
-      clients[protocol][self] = nil
-    end
-    if user_on_error then
-      user_on_error(self,err)
-    else
-      print('Websocket server error',err)
-    end
-  end
-  local user_on_close
-  local on_close = function(was_clean,code,reason)
-    if clients[protocol] ~= nil and clients[protocol][self] ~= nil then
-      clients[protocol][self] = nil
-    end
-    if close_timer then
-      close_timer:stop(loop)
-      close_timer = nil
-    end
-    message_io:stop(loop)
-    self.state = 'CLOSED'
-    if user_on_close then
-      user_on_close(self,was_clean,code,reason or '')
-    end
-    sock:shutdown()
-    sock:close()
-  end
-  
-  local handle_sock_err = function(err)
-    if err == 'closed' then
-      if self.state ~= 'CLOSED' then
-        on_close(false,1006,'')
-      end
-    else
-      on_error(err)
-    end
-  end
-  local user_on_message = function() end
-  local TEXT = frame.TEXT
-  local BINARY = frame.BINARY
-  local on_message = function(message,opcode)
-    if opcode == TEXT or opcode == BINARY then
-      user_on_message(self,message,opcode)
-    elseif opcode == frame.CLOSE then
-      if self.state ~= 'CLOSING' then
-        self.state = 'CLOSING'
-        local code,reason = frame.decode_close(message)
-        local encoded = frame.encode_close(code)
-        encoded = frame.encode(encoded,frame.CLOSE)
-        async_send(encoded,
-          function()
-            on_close(true,code or 1006,reason)
-          end,handle_sock_err)
-      else
-        on_close(true,1006,'')
-      end
-    end
-  end
-  
-  self.send = function(_,message,opcode)
-    local encoded = frame.encode(message,opcode or frame.TEXT)
-    return async_send(encoded)
-  end
-  
-  self.on_close = function(_,on_close_arg)
-    user_on_close = on_close_arg
-  end
-  
-  self.on_error = function(_,on_error_arg)
-    user_on_error = on_error_arg
-  end
-  
-  self.on_message = function(_,on_message_arg)
-    user_on_message = on_message_arg
-  end
-  
-  self.broadcast = function(_,...)
-    for client in pairs(clients[protocol]) do
-      if client.state == 'OPEN' then
-        client:send(...)
-      end
-    end
-  end
-  
-  self.close = function(_,code,reason,timeout)
-    if clients[protocol] ~= nil and clients[protocol][self] ~= nil then
-      clients[protocol][self] = nil
-    end
-    if not message_io then
-      self:start()
-    end
-    if self.state == 'OPEN' then
-      self.state = 'CLOSING'
-      assert(message_io)
-      timeout = timeout or 3
-      local encoded = frame.encode_close(code or 1000,reason or '')
-      encoded = frame.encode(encoded,frame.CLOSE)
-      async_send(encoded)
-      close_timer = ev.Timer.new(function()
-          close_timer = nil
-          on_close(false,1006,'timeout')
-        end,timeout)
-      close_timer:start(loop)
-    end
-  end
-  
-  self.start = function()
-    message_io = require'websocket.ev_common'.message_io(
-      sock,loop,
-      on_message,
-    handle_sock_err)
-  end
-  
-  
-  return self
-end
-
-local listen = function(opts)
-  assert(opts and (opts.protocols or opts.default))
-  ev = require'ev'
-  loop = opts.loop or ev.Loop.default
-  local user_on_error
-  local on_error = function(s,err)
-    if user_on_error then
-      user_on_error(s,err)
-    else
-      print(err)
-    end
-  end
-  local protocols = {}
-  if opts.protocols then
-    for protocol in pairs(opts.protocols) do
-      clients[protocol] = {}
-      tinsert(protocols,protocol)
-    end
-  end
-  local self = {}
-  self.on_error = function(self,on_error)
-    user_on_error = on_error
-  end
-  local listener,err = socket.bind(opts.interface or '*',opts.port or 80)
-  if not listener then
-    error(err)
-  end
-  listener:settimeout(0)
-  
-  self.sock = function()
-    return listener
-  end
-  
-  local listen_io = ev.IO.new(
-    function()
-      local client_sock = listener:accept()
-      client_sock:settimeout(0)
-      assert(client_sock)
-      local request = {}
-      local last
-      ev.IO.new(
-        function(loop,read_io)
-          repeat
-            local line,err,part = client_sock:receive('*l')
-            if line then
-              if last then
-                line = last..line
-                last = nil
-              end
-              request[#request+1] = line
-            elseif err ~= 'timeout' then
-              on_error(self,'Websocket Handshake failed due to socket err:'..err)
-              read_io:stop(loop)
-              return
-            else
-              last = part
-              return
-            end
-          until line == ''
-          read_io:stop(loop)
-          local upgrade_request = tconcat(request,'\r\n')
-          local response,protocol = handshake.accept_upgrade(upgrade_request,protocols)
-          if not response then
-            print('Handshake failed, Request:')
-            print(upgrade_request)
-            client_sock:close()
-            return
-          end
-          local index
-          ev.IO.new(
-            function(loop,write_io)
-              local len = #response
-              local sent,err = client_sock:send(response,index)
-              if not sent then
-                write_io:stop(loop)
-                print('Websocket client closed while handshake',err)
-              elseif sent == len then
-                write_io:stop(loop)
-                local protocol_handler
-                local new_client
-                local protocol_index
-                if protocol and opts.protocols[protocol] then
-                  protocol_index = protocol
-                  protocol_handler = opts.protocols[protocol]
-                elseif opts.default then
-                  -- true is the 'magic' index for the default handler
-                  protocol_index = true
-                  protocol_handler = opts.default
-                else
-                  client_sock:close()
-                  if on_error then
-                    on_error('bad protocol')
-                  end
-                  return
-                end
-                new_client = client(client_sock,protocol_index)
-                clients[protocol_index][new_client] = true
-                protocol_handler(new_client)
-                new_client:start(loop)
-              else
-                assert(sent < len)
-                index = sent
-              end
-            end,client_sock:getfd(),ev.WRITE):start(loop)
-        end,client_sock:getfd(),ev.READ):start(loop)
-    end,listener:getfd(),ev.READ)
-  self.close = function(keep_clients)
-    listen_io:stop(loop)
-    listener:close()
-    listener = nil
-    if not keep_clients then
-      for protocol,clients in pairs(clients) do
-        for client in pairs(clients) do
-          client:close()
-        end
-      end
-    end
-  end
-  listen_io:start(loop)
-  return self
-end
-
-return {
-  listen = listen
-}
- end)
 local frame = require'websocket.frame'
 
 return {
-  client = require'websocket.client',
+--  client = require'websocket.client',
   server = require'websocket.server',
   CONTINUATION = frame.CONTINUATION,
   TEXT = frame.TEXT,

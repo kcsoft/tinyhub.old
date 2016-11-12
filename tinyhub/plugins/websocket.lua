@@ -1,19 +1,14 @@
 local websocket = {}
 
 local json = require'json'
-local copas = require'copas'
-server = require'websocket'.server.copas
-
+server = require'websocket'.server.uloop
 
 function websocket.init()
 	server.listen
 	{
 	port = 8080,
 	protocols = {
-		-- this callback is called, whenever a new client connects.
-		-- ws is a new websocket instance
 		echo = function(ws)
-			while true do
 				local message = ws:receive()
 				if message then
 					local ok, jsonMsg = pcall(json.decode, message)
@@ -34,9 +29,8 @@ function websocket.init()
 					ws:close()
 					return
 				end
-			end
 		end
-	  }
+		}
 	}
 end
 
@@ -48,10 +42,6 @@ function websocket.webBroadcast(param)
 end
 
 function websocket.onWebChange(device, deviceResult)
-end
-
-function websocket.loop()
-	copas.loop()
 end
 
 websocket.actions = {
