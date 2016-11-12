@@ -272,6 +272,7 @@ local listen = function(opts)
   assert(opts and (opts.protocols or opts.default))
   local on_error = opts.on_error or function(s) print(s) end
   local listener = socket.tcp()
+  listener:setoption("reuseaddr", true)
   listener:settimeout(0)
   listener:bind("*", opts.port or 80)
   listener:listen()
