@@ -1,22 +1,16 @@
-require'devices.Utils'
+require'devices.GenericDevice'
 
 MqttSensor = {props = {}}
 
 function MqttSensor:new(o, opt)
-	o = o or {}
-	o.props = Utils.deepCopy(opt)
-	setmetatable(o, self)
-	self.__index = self;
+	local self = GenericDevice:new(o, opt)
+	self:extend(MqttSensor)
 	self.props.value = ""
-	return o
+	return self
 end
 
 function MqttSensor:onMqttMessage(eventParam, actions)
-	self.props.value = eventParam.payload
-	
-	local msg = {}
-	msg[self.props.id] = self.props.value
-	Utils.appendTableKey(actions, "webBroadcast", msg)
+	self:onChangeProp({name = "value", value = eventParam.payload}, actions)
 end
 
 function MqttSensor:onMqttSubscribe(eventParam, actions)

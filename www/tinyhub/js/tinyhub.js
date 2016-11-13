@@ -83,7 +83,7 @@ var tinyhub = {
 	},
 
 	onConfig: function() {
-		var i, j, pluginModules = [];
+		var i, j, pluginModules = ['js/devices.js'];
 		for (i = 0; i < this.config.plugins.length; i++) {
 			if (this.config.plugins[i].js)
 				pluginModules.push(this.config.plugins[i].js);

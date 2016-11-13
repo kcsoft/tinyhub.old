@@ -1,5 +1,16 @@
 Utils = {}
 
+function Utils.merge(a, b)
+    for k, v in pairs(b) do
+        if (type(v) == "table") and (type(a[k] or false) == "table") then
+            Utils.merge(a[k], b[k])
+        else
+            a[k] = v
+        end
+    end
+    return a
+end
+
 function Utils.shallowCopy(orig)
    local orig_type, copy = type(orig), nil
    if orig_type == "table" then
@@ -21,12 +32,4 @@ function Utils.deepCopy(orig)
 	  setmetatable(copy, Utils.deepCopy(getmetatable(orig)))
    else copy = orig end
    return copy
-end
-
-function Utils.appendTableKey(tabl, keyName, value)
-	if (tabl[keyName]) then
-		table.insert(tabl[keyName], value)
-	else
-		tabl[keyName] = {value}
-	end
 end

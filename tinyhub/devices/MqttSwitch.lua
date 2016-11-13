@@ -1,40 +1,30 @@
-require'devices.Utils'
+require'devices.GenericDevice'
 
 MqttSwitch = {props = {}}
 
 function MqttSwitch:new(o, opt)
-	o = o or {}
-	o.props = Utils.deepCopy(opt)
-	setmetatable(o, self)
-	self.__index = self;
+	local self = GenericDevice:new(o, opt)
+	self:extend(MqttSwitch)
 	self.props.value = 0
-	return o
+	return self
 end
 
 function MqttSwitch:onMqttMessage(eventParam, actions)
-	if (eventParam.payload == "1") then
-		self.props.value = 1
-	else
-		self.props.value = 0
+	local value = 0
+	if (eventParam.payload == self.props.onMessage) then
+		value = 1
 	end
-	
-	local msg = {}
-	msg[self.props.id] = self.props.value
-	Utils.appendTableKey(actions, "webBroadcast", msg)
+	self:onChangeProp({name = "value", value = value}, actions)
 end
 
 function MqttSwitch:onWebChange(eventParam, actions)
-	local publishVal
+	local publishVal = self.props.offMessage
 	if (eventParam == "1") then
-		self.props.value = 1
 		publishVal = self.props.onMessage
-	else
-		self.props.value = 0
-		publishVal = self.props.offMessage
 	end
 
 	local mqttMsg = {topic = self.props.topic, payload = publishVal}
-	Utils.appendTableKey(actions, "mqttPublish", mqttMsg)
+	self:appendTableKey(actions, "mqttPublish", mqttMsg)
 	self:onMqttMessage({payload = publishVal}, actions)
 end
 

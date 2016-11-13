@@ -20,10 +20,28 @@ function tinyubus.init()
 	end
 end
 
+function tinyubus.ubusCall(param)
+	if tinyubus.connection then
+		local result = tinyubus.connection:call(param.namespace, param.procedure, param.param)
+		if result then
+			if param.device then
+				tinycore.triggerEvent("onUbusResponse", result, {param.device})
+				print("onUbusResponse")
+			end
+		end
+	end
+end
+
+function tinyubus.onUbusResponse(device, deviceResult)
+end
+
+
 tinyubus.actions = {
+	ubusCall = tinyubus.ubusCall
 }
 
 tinyubus.events = {
+	onUbusResponse = tinyubus.onUbusResponse
 }
 
 return tinyubus

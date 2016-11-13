@@ -1,22 +1,16 @@
-require'devices.Utils'
+require'devices.GenericDevice'
 
 MqttButtons = {props = {}}
 
 function MqttButtons:new(o, opt)
-	o = o or {}
-	o.props = Utils.deepCopy(opt)
-	setmetatable(o, self)
-	self.__index = self;
-	self.props.value = 0
-	return o
+	local self = GenericDevice:new(o, opt)
+	self:extend(MqttButtons)
+	self.props.value = ""
+	return self
 end
 
 function MqttButtons:onMqttMessage(eventParam, actions)
-	self.props.value = eventParam.payload
-	
-	local msg = {}
-	msg[self.props.id] = self.props.value
-	Utils.appendTableKey(actions, "webBroadcast", msg)
+	self:onChangeProp({name = "value", value = eventParam.payload}, actions)
 end
 
 function MqttButtons:onMqttSubscribe(eventParam, actions)
@@ -32,7 +26,7 @@ function MqttButtons:onWebChange(eventParam, actions)
 	local idx, buttons = next(self.props.buttons)
 	local mqttMsg = {topic = buttons.topic, payload = buttons.message}
 	
-	Utils.appendTableKey(actions, "mqttPublish", mqttMsg)
+	self:appendTableKey(actions, "mqttPublish", mqttMsg)
 	self:onMqttMessage({payload = self.props.value}, actions)
 end
 

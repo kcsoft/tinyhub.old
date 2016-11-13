@@ -1,18 +1,49 @@
 {
   "plugins": [
     {
+      "plugin": "core"
+    },
+    {
       "plugin": "websocket"
     },
     {
       "plugin": "mqtt",
-	  "broker": "localhost",
-	  "js": "plugins/mqtt"
+      "broker": "192.168.1.1",
+      "js": "plugins/mqtt"
     },
     {
       "plugin": "tinyubus"
+    },
+    {
+      "plugin": "presence",
+      "interval": "60000",
+      "ubusNamespace": "hostapd.wlan0",
+      "ubusFunction": "get_clients",
+      "device": "presence",
+      "clients": {"xx:xx:xx:xx:xx:xx": "John"}
     }
   ],
   "devices": [
+    {
+      "class": "GenericSensor",
+      "id": "presence",
+      "name": "Presence",
+      "onChange": {
+        "to": "",
+        "actions": {
+          "mqttPublish": {
+            "topic":"turnlightsoff",
+            "payload":"0"
+          }
+        }
+      },
+      "attributes": [
+        {
+          "name": "presence",
+          "type": "string"
+        }
+      ]
+    },
     {
       "class": "MqttSensor",
       "id": "garageTemp",
@@ -112,6 +143,9 @@
       "devices": [
         {
           "deviceId": "switch-1"
+        },
+        {
+          "deviceId": "presence"
         }
       ]
     },
