@@ -1,2 +1,3 @@
 *.json
 *.sh
+/tinyhub/inspect.lua
