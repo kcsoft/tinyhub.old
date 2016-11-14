@@ -21,9 +21,27 @@
       "ubusFunction": "get_clients",
       "device": "presence",
       "clients": {"xx:xx:xx:xx:xx:xx": "John"}
+    },
+    {
+      "plugin": "darksky",
+      "url": "https://api.darksky.net/forecast/<myapikey>/<lat>,<long>?units=si&exclude=flags,hourly",
+      "interval": "600000",
+      "js": "plugins/darksky/darksky"
     }
   ],
   "devices": [
+    {
+      "class": "DarkskySensor",
+      "id": "darksky",
+      "name": "Weather",
+      "tempUnit": "°C",
+      "attributes": [
+        {
+          "name": "Weather",
+          "type": "string"
+        }
+      ]
+    },
     {
       "class": "GenericSensor",
       "id": "presence",
@@ -167,6 +185,15 @@
         },
         {
           "deviceId": "button-garage"
+        }
+      ]
+    },
+    {
+      "id": "weather",
+      "name": "Weather",
+      "devices": [
+        {
+          "deviceId": "darksky"
         }
       ]
     }

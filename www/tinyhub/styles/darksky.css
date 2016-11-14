@@ -1,0 +1,33 @@
+.valign{
+	display: block;
+	height: 100%;
+	vertical-align: middle;
+}
+.darksky-now, .darksky-daily{
+	font-weight: 500;
+}
+.darksky-now{
+	min-height: 60px;
+	margin: 8px 5px 8px 5px;
+	font-size: 24px;
+}
+.darksky-daily{
+	min-height: 40px;
+	margin: 5px;
+	font-size: 12px;
+}
+.darksky-now > *, .darksky-daily > *{
+	vertical-align: middle;
+	display: inline-block;
+}
+.darksky-date-temp{
+	font-size: 14px;
+	font-weight: bold;
+}
+.darksky-now canvas, .darksky-daily canvas{
+	max-width: 29%;
+}
+.darksky-text{
+	max-width: 70%;
+	padding-left: 10px;
+}

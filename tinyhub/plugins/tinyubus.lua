@@ -26,7 +26,6 @@ function tinyubus.ubusCall(param)
 		if result then
 			if param.device then
 				tinycore.triggerEvent("onUbusResponse", result, {param.device})
-				print("onUbusResponse")
 			end
 		end
 	end
