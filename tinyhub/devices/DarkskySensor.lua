@@ -9,6 +9,6 @@ function DarkskySensor:new(o, opt)
 	return self
 end
 
-function DarkskySensor:onWeatherData(eventParam, actions)
-	self:onChangeProp({name = "value", value = eventParam.value}, actions)
+function DarkskySensor:onWeatherData(eventParam)
+	self:onChangeProp({name = "value", value = eventParam.value})
 end

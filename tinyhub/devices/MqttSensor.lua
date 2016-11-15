@@ -9,11 +9,11 @@ function MqttSensor:new(o, opt)
 	return self
 end
 
-function MqttSensor:onMqttMessage(eventParam, actions)
-	self:onChangeProp({name = "value", value = eventParam.payload}, actions)
+function MqttSensor:onMqttMessage(eventParam)
+	self:onChangeProp({name = "value", value = eventParam.payload})
 end
 
-function MqttSensor:onMqttSubscribe(eventParam, actions)
+function MqttSensor:getMqttSubscribe(eventParam)
 	local idx, attributes = next(self.props.attributes)
 	return {attributes.topic}
 end

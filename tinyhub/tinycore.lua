@@ -5,18 +5,25 @@ tinycore.plugins = {}
 tinycore.config = {}
 
 tinycore.actions = {}
-tinycore.events = {}
 
 local open = io.open
 local json = require'json'
 
-
+--helper
 local function read_file(path)
     local file = open(path, "rb") -- r read mode and b binary mode
     if not file then return nil end
     local content = file:read "*a" -- *a or *all reads the whole file
     file:close()
     return content
+end
+
+function tinycore.appendTableKey(tabl, keyName, value)
+	if (tabl[keyName]) then
+		table.insert(tabl[keyName], value)
+	else
+		tabl[keyName] = {value}
+	end
 end
 
 
@@ -55,40 +62,43 @@ function tinycore.load_plugins(config)
 	if (config) then
 		for i,v in ipairs(tinycore.config.plugins) do
 			tinycore.plugins[v.plugin] = require("plugins."..v.plugin)
-			for k, a in pairs(tinycore.plugins[v.plugin].actions) do
-				tinycore.actions[k] = a
-			end
-			for k, a in pairs(tinycore.plugins[v.plugin].events) do
-				tinycore.events[k] = a
-			end
 			tinycore.plugins[v.plugin].init(v)
 		end
 	end
 end
 
--- Events and Actions
-function tinycore.executeActions(actions)
-	for actionName, action in pairs(actions) do
-		for i, data in ipairs(action) do
-			tinycore.actions[actionName](data);
+-- Actions
+function tinycore.runPlugin(actionName, actionParam)
+	tinycore.appendTableKey(tinycore.actions, actionName, actionParam)
+end
+
+function tinycore.executeActions()
+	local actionName, actionParams = next(tinycore.actions)
+	while actionName ~= nil do
+		tinycore.actions[actionName] = nil
+		for pluginName, plugin in pairs(tinycore.plugins) do
+			if (plugin[actionName]) then
+				plugin[actionName](actionParams);
+			end
 		end
+		actionName, actionParams = next(tinycore.actions)
 	end
 end
 
-function tinycore.triggerEvent(eventName, eventParam, devices)
-	local actions = {}
-	local eventDevices = devices
+function tinycore.runDevice(actionName, actionParam, devices)
+	local deviceList = devices
+	local result = {}
 	
-	if (not eventDevices) then
-		eventDevices = tinycore.devices
+	if (not deviceList) then
+		deviceList = tinycore.devices
 	end
 	
-	for i, d in pairs(eventDevices) do
-		if (d[eventName]) then
-			tinycore.events[eventName](d, d[eventName](d, eventParam, actions))
+	for i, device in pairs(deviceList) do
+		if (device[actionName]) then
+			result[device.props.id] = device[actionName](device, actionParam)
 		end
 	end
-	tinycore.executeActions(actions)
+	return result
 end
 
 return tinycore

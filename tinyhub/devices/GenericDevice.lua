@@ -1,4 +1,5 @@
 require'devices.Utils'
+tinycore = require("tinycore")
 
 GenericDevice = {props = {}}
 
@@ -29,20 +30,12 @@ function GenericDevice:appendTableKey(tabl, keyName, value)
 	end
 end
 
-function GenericDevice:onChangeProp(eventParam, actions)
+function GenericDevice:onChangeProp(eventParam)
 	local oldValue = self.props[eventParam.name]
 	self.props[eventParam.name] = eventParam.value
 	if self.props[eventParam.name] ~= oldValue then
 		local msg = {}
 		msg[self.props.id] = self.props[eventParam.name]
-		self:appendTableKey(actions, "webBroadcast", msg)
-
-		if self.props.onChange then
-			if self.props.onChange.to == eventParam.value then
-				for actionName, actionParam in pairs(self.props.onChange.actions) do
-					self:appendTableKey(actions, actionName, actionParam)
-				end
-			end
-		end
+		tinycore.runPlugin("onDeviceChange", msg)
 	end
 end

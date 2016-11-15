@@ -9,26 +9,26 @@ function MqttSwitch:new(o, opt)
 	return self
 end
 
-function MqttSwitch:onMqttMessage(eventParam, actions)
+function MqttSwitch:onMqttMessage(eventParam)
 	local value = 0
 	if (eventParam.payload == self.props.onMessage) then
 		value = 1
 	end
-	self:onChangeProp({name = "value", value = value}, actions)
+	self:onChangeProp({name = "value", value = value})
 end
 
-function MqttSwitch:onWebChange(eventParam, actions)
+function MqttSwitch:onWebChange(eventParam)
 	local publishVal = self.props.offMessage
 	if (eventParam == "1") then
 		publishVal = self.props.onMessage
 	end
 
 	local mqttMsg = {topic = self.props.topic, payload = publishVal}
-	self:appendTableKey(actions, "mqttPublish", mqttMsg)
-	self:onMqttMessage({payload = publishVal}, actions)
+	tinycore.runPlugin("mqttPublish", mqttMsg)
+	self:onMqttMessage({payload = publishVal})
 end
 
-function MqttSwitch:onMqttSubscribe(eventParam, actions)
+function MqttSwitch:getMqttSubscribe(eventParam)
 	if type(self.props.stateTopic) == "string" then
 		return {self.props.stateTopic}
 	else

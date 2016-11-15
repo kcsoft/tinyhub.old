@@ -12,20 +12,10 @@ end
 function darksky.onTimer()
 	local response = http.request(darksky.plugin.url)
 	if (response) then
-		tinycore.triggerEvent("onWeatherData", {name = "value", value = response}, nil)
+		tinycore.runDevice("onWeatherData", {name = "value", value = response}, nil)
+		tinycore.executeActions()
 	end
 	darksky.timer:set(darksky.plugin.interval)
 end
-
-
-function darksky.onWeatherData(device, deviceResult)
-end
-
-darksky.actions = {
-}
-
-darksky.events = {
-	onWeatherData = darksky.onWeatherData
-}
 
 return darksky

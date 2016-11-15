@@ -5,7 +5,7 @@ require'uloop'
 
 function presence.init(plugin)
 	presence.plugin = plugin
-	presence.timer = uloop.timer(presence.onTimer, presence.plugin.interval)
+	presence.timer = uloop.timer(presence.onTimer, 5000)
 end
 
 function presence.onTimer()
@@ -22,14 +22,9 @@ function presence.onTimer()
 		end
 	end
 
-	tinycore.triggerEvent("onChangeProp", {name = "value", value = value}, {tinycore.devices[presence.plugin.device]})
+	tinycore.runDevice("onChangeProp", {name = "value", value = value}, {tinycore.devices[presence.plugin.device]})
+	tinycore.executeActions()
 	presence.timer:set(presence.plugin.interval)
 end
-
-presence.actions = {
-}
-
-presence.events = {
-}
 
 return presence

@@ -9,11 +9,11 @@ function MqttButtons:new(o, opt)
 	return self
 end
 
-function MqttButtons:onMqttMessage(eventParam, actions)
-	self:onChangeProp({name = "value", value = eventParam.payload}, actions)
+function MqttButtons:onMqttMessage(eventParam)
+	self:onChangeProp({name = "value", value = eventParam.payload})
 end
 
-function MqttButtons:onMqttSubscribe(eventParam, actions)
+function MqttButtons:getMqttSubscribe(eventParam)
 	local idx, buttons = next(self.props.buttons)
 	local result = nil
 	if (buttons.stateTopic) then
@@ -22,11 +22,10 @@ function MqttButtons:onMqttSubscribe(eventParam, actions)
 	return result
 end
 
-function MqttButtons:onWebChange(eventParam, actions)
+function MqttButtons:onWebChange(eventParam)
 	local idx, buttons = next(self.props.buttons)
 	local mqttMsg = {topic = buttons.topic, payload = buttons.message}
-	
-	self:appendTableKey(actions, "mqttPublish", mqttMsg)
-	self:onMqttMessage({payload = self.props.value}, actions)
+	tinycore.runPlugin("mqttPublish", mqttMsg)
+	self:onMqttMessage({payload = self.props.value})
 end
 
