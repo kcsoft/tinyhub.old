@@ -3,7 +3,7 @@
 
 Open source home automation software for OpenWRT written in Lua.
 
-##Required packages
+## Required packages
 
 * mosquitto-nossl (optional)
 * lua
@@ -15,7 +15,7 @@ Open source home automation software for OpenWRT written in Lua.
 * luasec
 
 
-##Installation
+## Installation
 Copy `www/tinyhub` to OpenWRT `/www` folder.  
 Copy `tinyhub` to OpenWRT. e.g. `/usr/local`  
 Copy `config.json.example` to `config.json`. Edit the `config.json` file to configure plugins, devices, pages.  
@@ -23,7 +23,7 @@ Create your startup script in `/etc/init.d` to run `lua tinyhub.lua` so that tin
 Open `http://<openwrt>/tinyhub/` in your browser.  
 
 
-##Plugins
+## Plugins
 * Core (core)
 * Websocket (core)
 * Mqtt
@@ -32,7 +32,7 @@ Open `http://<openwrt>/tinyhub/` in your browser.
 * Darksky (weather)
 
 
-##Devices
+## Devices
 * GenericDevice (base device, provides device change event, run actions set in device `onChange` property)
 * GenericSensor
 * MqttButtons
